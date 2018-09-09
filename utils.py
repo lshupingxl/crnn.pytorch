@@ -5,29 +5,16 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import collections
-
+from data_generator.config import Alphabet
 
 class strLabelConverter(object):
-    """Convert between str and label.
-
-    NOTE:
-        Insert `blank` to the alphabet for CTC.
-
-    Args:
-        alphabet (str): set of the possible characters.
-        ignore_case (bool, default=True): whether or not to ignore all of the case.
-    """
-
-    def __init__(self, alphabet, ignore_case=True):
-        self._ignore_case = ignore_case
-        if self._ignore_case:
-            alphabet = alphabet.lower()
-        self.alphabet = alphabet + '-'  # for `-1` index
+    def __init__(self, alphabet):
+        self.alphabet = alphabet
 
         self.dict = {}
-        for i, char in enumerate(alphabet):
+        for i, char in enumerate(self.alphabet):
             # NOTE: 0 is reserved for 'blank' required by wrap_ctc
-            self.dict[char] = i + 1
+            self.dict[char] = i
 
     def encode(self, text):
         """Support batch or single str.
@@ -40,16 +27,13 @@ class strLabelConverter(object):
             torch.IntTensor [n]: length of each text.
         """
         if isinstance(text, str):
-            text = [
-                self.dict[char.lower() if self._ignore_case else char]
-                for char in text
-            ]
+            text = [self.dict[char] for char in text]
             length = [len(text)]
         elif isinstance(text, collections.Iterable):
             length = [len(s) for s in text]
             text = ''.join(text)
             text, _ = self.encode(text)
-        return (torch.IntTensor(text), torch.IntTensor(length))
+        return (text,length)
 
     def decode(self, t, length, raw=False):
         """Decode encoded texts back into strs.
@@ -66,25 +50,25 @@ class strLabelConverter(object):
         """
         if length.numel() == 1:
             length = length[0]
-            assert t.numel() == length, "text with length: {} does not match declared length: {}".format(t.numel(), length)
+            assert t.numel() == length, "text with length: {} does not match declared length: {}".format(t.numel(),
+                                                                                                         length)
             if raw:
-                return ''.join([self.alphabet[i - 1] for i in t])
+                return ''.join([self.alphabet[i] for i in t])
             else:
                 char_list = []
                 for i in range(length):
                     if t[i] != 0 and (not (i > 0 and t[i - 1] == t[i])):
-                        char_list.append(self.alphabet[t[i] - 1])
+                        char_list.append(self.alphabet[t[i]])
                 return ''.join(char_list)
         else:
             # batch mode
-            assert t.numel() == length.sum(), "texts with length: {} does not match declared length: {}".format(t.numel(), length.sum())
+            assert t.numel() == length.sum(), "texts with length: {} does not match declared length: {}".format(
+                t.numel(), length.sum())
             texts = []
             index = 0
             for i in range(length.numel()):
                 l = length[i]
-                texts.append(
-                    self.decode(
-                        t[index:index + l], torch.IntTensor([l]), raw=raw))
+                texts.append(self.decode(t[index:index + l], torch.Tensor([l]).int(), raw=raw))
                 index += l
             return texts
 
@@ -147,3 +131,7 @@ def assureRatio(img):
         main = nn.UpsamplingBilinear2d(size=(h, h), scale_factor=None)
         img = main(img)
     return img
+
+if __name__ == '__main__':
+    converter = strLabelConverter(Alphabet.CHINESECHAR_LETTERS_DIGIT)
+    print(len(converter.dict),len(Alphabet.CHINESECHAR_LETTERS_DIGIT),len(set(Alphabet.CHINESECHAR_LETTERS_DIGIT)))

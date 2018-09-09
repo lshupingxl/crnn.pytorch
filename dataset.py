@@ -2,19 +2,42 @@
 # encoding: utf-8
 
 import random
+import sys
+
+import lmdb
+import numpy as np
+import six
 import torch
+import torchvision.transforms as transforms
+from PIL import Image
 from torch.utils.data import Dataset
 from torch.utils.data import sampler
-import torchvision.transforms as transforms
-import lmdb
-import six
-import sys
-from PIL import Image
-import numpy as np
+import cv2
 
+class ImageDataset(torch.utils.data.Dataset):
+    def __init__(self, txt, data_shape,channel=3, transform=None, target_transform=None):
+        with open(txt, 'r') as f:
+            data = list(line.strip().split(' ') for line in f if line)
+        self.data = data
+        self.transform = transform
+        self.target_transform = target_transform
+        self.data_shape = data_shape
+        self.channel = channel
+
+
+    def __getitem__(self, index):
+        img_path, label = self.data[index]
+        img = cv2.imread(img_path, 0 if self.channel==1 else 3)
+        img = cv2.resize(img, (self.data_shape[0], self.data_shape[1]))
+        img = np.reshape(img,(self.data_shape[0], self.data_shape[1],self.channel))
+        if self.transform is not None:
+            img = self.transform(img)
+        return img, label
+
+    def __len__(self):
+        return len(self.data)
 
 class lmdbDataset(Dataset):
-
     def __init__(self, root=None, transform=None, target_transform=None):
         self.env = lmdb.open(
             root,
@@ -29,7 +52,7 @@ class lmdbDataset(Dataset):
             sys.exit(0)
 
         with self.env.begin(write=False) as txn:
-            nSamples = int(txn.get('num-samples'))
+            nSamples = int(txn.get('num-samples'.encode()))
             self.nSamples = nSamples
 
         self.transform = transform
@@ -43,7 +66,7 @@ class lmdbDataset(Dataset):
         index += 1
         with self.env.begin(write=False) as txn:
             img_key = 'image-%09d' % index
-            imgbuf = txn.get(img_key)
+            imgbuf = txn.get(img_key.encode())
 
             buf = six.BytesIO()
             buf.write(imgbuf)
@@ -58,7 +81,7 @@ class lmdbDataset(Dataset):
                 img = self.transform(img)
 
             label_key = 'label-%09d' % index
-            label = str(txn.get(label_key))
+            label = str(txn.get(label_key.encode()), 'utf-8')
 
             if self.target_transform is not None:
                 label = self.target_transform(label)
@@ -67,7 +90,6 @@ class lmdbDataset(Dataset):
 
 
 class resizeNormalize(object):
-
     def __init__(self, size, interpolation=Image.BILINEAR):
         self.size = size
         self.interpolation = interpolation
@@ -81,7 +103,6 @@ class resizeNormalize(object):
 
 
 class randomSequentialSampler(sampler.Sampler):
-
     def __init__(self, data_source, batch_size):
         self.num_samples = len(data_source)
         self.batch_size = batch_size
@@ -107,7 +128,6 @@ class randomSequentialSampler(sampler.Sampler):
 
 
 class alignCollate(object):
-
     def __init__(self, imgH=32, imgW=100, keep_ratio=False, min_ratio=1):
         self.imgH = imgH
         self.imgW = imgW

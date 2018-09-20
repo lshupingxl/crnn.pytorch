@@ -6,7 +6,7 @@ Origin software could be found in [crnn](https://github.com/bgshih/crnn)
 
 Run demo
 --------
-A demo program can be found in ``src/demo.py``. Before running the demo, download a pretrained model
+A demo program can be found in ``demo.py``. Before running the demo, download a pretrained model
 from [Baidu Netdisk](https://pan.baidu.com/s/1pLbeCND) or [Dropbox](https://www.dropbox.com/s/dboqjk20qjkpta3/crnn.pth?dl=0). 
 This pretrained model is converted from auther offered one by ``tool``.
 Put the downloaded model file ``crnn.pth`` into directory ``data/``. Then launch the demo by:
@@ -24,11 +24,10 @@ Expected output:
 
 Dependence
 ----------
-* pytorch0.4
-* [warp_ctc_pytorch](https://github.com/SeanNaren/warp-ctc/tree/pytorch_bindings/pytorch_binding)
+* pytorch1.0
 * lmdb
 
 Train a new model
 -----------------
 1. Construct dataset following origin guide. For training with variable length, please sort the image according to the text length.
-2. ``python crnn_main.py [--param val]``. Explore ``crnn_main.py`` for details.
+2. ``python3 train.py [--param val]``. Explore ``train.py`` for details.

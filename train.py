@@ -1,10 +1,9 @@
 from __future__ import print_function
 import argparse
 import torch
+from torch import nn,optim
 import torchvision.transforms as transforms
-import torch.optim as optim
 import torch.utils.data
-from warpctc_pytorch import CTCLoss
 import os
 import utils
 import dataset
@@ -14,6 +13,7 @@ import pandas
 import time
 from tensorboardX import SummaryWriter
 
+torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = True
 gpu_id = "2"
 os.environ["CUDA_VISIBLE_DEVICES"] = gpu_id
@@ -56,9 +56,9 @@ def val(net, test_loader, criterion, converter, device):
 
 def train(opt):
     if opt.output_dir is None:
-        opt.output_dir = 'output'
+        opt.output_dir = 'output/'
     if not os.path.exists(opt.output_dir):
-        os.mkdir(opt.output_dir)
+        os.makedirs(opt.output_dir)
     nc = 1
     device = torch.device("cuda:0" if gpu_id is not None and torch.cuda.is_available() else "cpu")
     # ************************* image dataset
@@ -86,28 +86,19 @@ def train(opt):
     # test_loader = torch.utils.data.DataLoader(test_dataset, shuffle=True, batch_size=opt.batchSize,
     #                                           num_workers=int(opt.workers))
     converter = utils.strLabelConverter(opt.alphabet)
-    criterion = CTCLoss()
 
-    # custom weights initialization called on crnn
-    def weights_init(m):
-        classname = m.__class__.__name__
-        if classname.find('Conv') != -1:
-            m.weight.data.normal_(0.0, 0.02)
-        elif classname.find('BatchNorm') != -1:
-            m.weight.data.normal_(1.0, 0.02)
-            m.bias.data.fill_(0)
     net = crnn.CRNN(opt.imgH, nc, len(opt.alphabet), opt.nh).to(device)
-    # net.apply(weights_init)
     if opt.crnn != '':
         print('loading pretrained model from %s' % opt.crnn)
         net.load_state_dict(torch.load(opt.crnn))
 
     net = net.to(device)
     # writer = SummaryWriter('./log/%s' % (time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())))
-    writer = SummaryWriter('./log/GRU_default')
+    writer = SummaryWriter(opt.output_dir)
     # dummy_input = torch.autograd.Variable(torch.Tensor(1, nc, opt.imgH, opt.imgW).to(device))
     # writer.add_graph(model=net, input_to_model=dummy_input)
 
+    criterion = nn.CTCLoss()
     criterion = criterion.to(device)
 
     # setup optimizer
@@ -166,16 +157,19 @@ def train(opt):
         torch.save(net.state_dict(), '{0}/netCRNN_{1}.pth'.format(opt.output_dir, epoch))
     # save final model
     torch.save(net, opt.output_dir + '/model.pkl')
+    torch.onnx.export()
     writer.close()
 
 
 def init_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--trainroot', default='/data/zj/dataset/train_lmdb', help='path to dataset')
-    parser.add_argument('--valroot', default='/data/zj/dataset/test_lmdb', help='path to dataset')
+    parser.add_argument(
+        '--trainroot', default='/data2/zj/data/num//train_lmdb', help='path to dataset')
+    parser.add_argument(
+        '--valroot', default='/data2/zj/data/num/test_lmdb', help='path to dataset')
     parser.add_argument('--trainfile', default='/data/datasets/segment-free/train.csv', help='path to dataset file')
     parser.add_argument('--valfile', default='/data/datasets/segment-free/test.csv', help='path to dataset file')
-    parser.add_argument('--workers', type=int, help='number of data loading workers', default=3)
+    parser.add_argument('--workers', type=int, help='number of data loading workers', default=50)
     parser.add_argument('--batchSize', type=int, default=128, help='input batch size')
     parser.add_argument('--imgH', type=int, default=32, help='the height of the input image to network')
     parser.add_argument('--imgW', type=int, default=200, help='the width of the input image to network')
@@ -185,9 +179,9 @@ def init_args():
     parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
     parser.add_argument('--crnn', default='', help="path to crnn (to continue training)")
     parser.add_argument('--alphabet', type=str, default=Alphabet.CHINESECHAR_LETTERS_DIGIT_SYMBOLS)
-    parser.add_argument('--output_dir', default='output_gru_default', help='Where to store samples and models')
-    parser.add_argument('--displayInterval', type=int, default=100, help='Interval to be displayed')
-    parser.add_argument('--n_test_disp', type=int, default=10, help='Number of samples to display when test')
+    parser.add_argument('--output_dir', default='output/output_gru_default', help='Where to store samples and models')
+    parser.add_argument('--displayInterval', type=int, default=10, help='Interval to be displayed')
+    parser.add_argument('--n_test_disp', type=int, default=1, help='Number of samples to display when test')
     parser.add_argument('--valInterval', type=int, default=500, help='Interval to be displayed')
     parser.add_argument('--random_sample', action='store_true',
                         help='whether to sample the dataset with random sampler')

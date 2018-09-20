@@ -72,8 +72,16 @@ class CRNN(nn.Module):
         assert h == 1, "the height of conv must be 1"
         conv = conv.squeeze(2)
         conv = conv.permute(2, 0, 1)  # [w, b, c]
-
         # rnn features
         output = self.rnn(conv)
 
         return output
+
+
+if __name__ == '__main__':
+    import torch
+
+    input = torch.Tensor(1, 3, 32, 320)
+    net = CRNN(32,3,10,256)
+    y = net(input)
+    print(y.shape)

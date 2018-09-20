@@ -3,7 +3,7 @@
 
 import random
 import sys
-
+import pathlib
 import lmdb
 import numpy as np
 import six
@@ -14,28 +14,88 @@ from torch.utils.data import Dataset
 from torch.utils.data import sampler
 import cv2
 
-class ImageDataset(torch.utils.data.Dataset):
-    def __init__(self, txt, data_shape,channel=3, transform=None, target_transform=None):
-        with open(txt, 'r') as f:
-            data = list(line.strip().split(' ') for line in f if line)
-        self.data = data
+
+class ImageDataset(Dataset):
+    def __init__(self, data_txt: str, data_shape: tuple, img_channel: int, num_label: int,
+                 alphabet: str, transform=None, target_transform=None):
+        """
+        数据集初始化
+        :param data_txt: 存储着图片路径和对于label的文件
+        :param data_shape: 图片的大小(h,w)
+        :param img_channel: 图片通道数
+        :param num_label: 最大字符个数,应该和网络最终输出的序列宽度一样
+        :param alphabet: 字母表
+        """
+        super(ImageDataset, self).__init__()
+        self.data_list = []
+        with open(data_txt, 'r', encoding='utf-8') as f:
+            for line in f.readlines():
+                line = line.strip('\n').replace('.jpg ', '.jpg\t').split('\t')
+                img_path = pathlib.Path(line[0])
+                if img_path.exists() and img_path.stat().st_size > 0 and line[1]:
+                    self.data_list.append((line[0], line[1]))
+
         self.transform = transform
         self.target_transform = target_transform
-        self.data_shape = data_shape
-        self.channel = channel
-
+        self.img_h = data_shape[0]
+        self.img_w = data_shape[1]
+        self.img_channel = img_channel
+        self.num_label = num_label
+        self.alphabet = alphabet
+        self.label_dict = {}
+        for i, char in enumerate(self.alphabet):
+            self.label_dict[char] = i
 
     def __getitem__(self, index):
-        img_path, label = self.data[index]
-        img = cv2.imread(img_path, 0 if self.channel==1 else 3)
-        img = cv2.resize(img, (self.data_shape[0], self.data_shape[1]))
-        img = np.reshape(img,(self.data_shape[0], self.data_shape[1],self.channel))
+        img_path, label = self.data_list[index]
+        label = label.replace(' ', '')
+        # try:
+        #     label = self.label_enocder(label)
+        # except Exception as e:
+        #     print(img_path, label)
+        img = self.pre_processing(img_path)
+
         if self.transform is not None:
             img = self.transform(img)
+
+        if self.target_transform is not None:
+            label = self.target_transform(label)
         return img, label
 
     def __len__(self):
-        return len(self.data)
+        return len(self.data_list)
+
+    def label_enocder(self, label):
+        """
+        对label进行处理，将输入的label字符串转换成在字母表中的索引
+        :param label: label字符串
+        :return: 索引列表
+        """
+        tmp_label = np.zeros(self.num_label, dtype=np.float32) - 1
+        for i, ch in enumerate(label):
+            tmp_label[i] = self.label_dict[ch]
+        return tmp_label
+
+    def pre_processing(self, img_path):
+        """
+        对图片进行处理，先按照高度进行resize，resize之后如果宽度不足指定宽度，就补黑色像素，否则就强行缩放到指定宽度
+        :param img_path: 图片地址
+        :return:
+        """
+        img = cv2.imdecode(np.fromfile(img_path), 1 if self.img_channel == 3 else 0)
+        img = cv2.resize(img, (110, 16))
+        h, w = img.shape[:2]
+        ratio_h = self.img_h / h
+        new_w = int(w * ratio_h)
+        if new_w < self.img_w:
+            img = cv2.resize(img, (new_w, self.img_h))
+            step = np.zeros((self.img_h, self.img_w - new_w, self.img_channel), dtype=img.dtype)
+            img = img.reshape((img.shape[0],img.shape[1],self.img_channel))
+            img = np.column_stack((img, step))
+        else:
+            img = cv2.resize(img, (self.img_w, self.img_h))
+        return img
+
 
 class lmdbDataset(Dataset):
     def __init__(self, root=None, transform=None, target_transform=None):

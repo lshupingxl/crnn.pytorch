@@ -29,15 +29,14 @@ class Pytorch_model:
         self.converter = utils.strLabelConverter(alphabet)
         if self.gpu_id is not None and isinstance(self.gpu_id, int) and torch.cuda.is_available():
             self.device = torch.device("cuda:%s" % self.gpu_id)
-            self.net = torch.load(model_path, map_location=lambda storage, loc: storage.cuda(gpu_id))
         else:
             self.device = torch.device("cpu")
-            self.net = torch.load(model_path, map_location=lambda storage, loc: storage.cpu())
+        self.net = torch.load(model_path)
+        net = net.to(self.device)
         print('device:', self.device)
 
         if net is not None:
             # 如果网络计算图和参数是分开保存的，就执行参数加载
-            net = net.to(self.device)
             net.load_state_dict(self.net)
             self.net = net
         self.net.eval()

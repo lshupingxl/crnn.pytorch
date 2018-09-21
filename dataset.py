@@ -71,7 +71,7 @@ class ImageDataset(Dataset):
         :param label: label字符串
         :return: 索引列表
         """
-        tmp_label = np.zeros(self.num_label, dtype=np.float32) - 1
+        tmp_label = np.zeros(self.num_label, dtype=np.float32) -1
         for i, ch in enumerate(label):
             tmp_label[i] = self.label_dict[ch]
         return tmp_label

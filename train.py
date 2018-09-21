@@ -62,14 +62,14 @@ def train(opt):
     nc = 1
     device = torch.device("cuda:0" if gpu_id is not None and torch.cuda.is_available() else "cpu")
     # ************************* image dataset
-    # train_dataset = dataset.ImageDataset(data_txt=opt.trainfile, data_shape=(opt.imgH, opt.imgW), img_channel=nc,
-    #                                      num_label=80, alphabet=opt.alphabet, transform=transforms.ToTensor())
-    # test_dataset = dataset.ImageDataset(data_txt=opt.valfile, data_shape=(opt.imgH, opt.imgW), img_channel=nc,
-    #                                     num_label=80, alphabet=opt.alphabet, transform=transforms.ToTensor())
-    #
-    train_transform = transforms.Compose([transforms.Resize((opt.imgH, opt.imgW)), transforms.ToTensor()])
-    train_dataset = dataset.lmdbDataset(root=opt.trainroot, transform=train_transform)
-    test_dataset = dataset.lmdbDataset(root=opt.valroot, transform=train_transform)
+    train_dataset = dataset.ImageDataset(data_txt=opt.trainfile, data_shape=(opt.imgH, opt.imgW), img_channel=nc,
+                                         num_label=81, alphabet=opt.alphabet, transform=transforms.ToTensor())
+    test_dataset = dataset.ImageDataset(data_txt=opt.valfile, data_shape=(opt.imgH, opt.imgW), img_channel=nc,
+                                        num_label=81, alphabet=opt.alphabet, transform=transforms.ToTensor())
+
+    # train_transform = transforms.Compose([transforms.Resize((opt.imgH, opt.imgW)), transforms.ToTensor()])
+    # train_dataset = dataset.lmdbDataset(root=opt.trainroot, transform=train_transform)
+    # test_dataset = dataset.lmdbDataset(root=opt.valroot, transform=train_transform)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=opt.batchSize, shuffle=True,
                                                num_workers=int(opt.workers))
@@ -118,11 +118,14 @@ def train(opt):
             text = torch.Tensor(text).int()
             length = torch.Tensor(length).int()
             images = images.to(device)
+            # labels = labels.to(device)
 
             preds = net(images)
+            # preds_size = torch.full((batch_size,), preds.size(0), dtype=torch.long)
             preds_size = torch.Tensor([preds.size(0)] * batch_size).int()
             preds.requires_grad_(True)
-            loss = criterion(preds, text, preds_size, length)  # text,preds_size must be cpu
+            loss = criterion(preds, text, preds_size, length)
+            # loss = criterion(preds, labels, preds_size, preds_size)
             # backward
             optimizer.zero_grad()
             loss.backward()
@@ -180,7 +183,7 @@ def init_args():
     parser.add_argument('--crnn', default='', help="path to crnn (to continue training)")
     parser.add_argument('--alphabet', type=str, default=Alphabet.CHINESECHAR_LETTERS_DIGIT_SYMBOLS)
     parser.add_argument('--output_dir', default='output/output_gru_default1', help='Where to store samples and models')
-    parser.add_argument('--displayInterval', type=int, default=100, help='Interval to be displayed')
+    parser.add_argument('--displayInterval', type=int, default=10, help='Interval to be displayed')
     parser.add_argument('--n_test_disp', type=int, default=1, help='Number of samples to display when test')
     parser.add_argument('--valInterval', type=int, default=500, help='Interval to be displayed')
     parser.add_argument('--random_sample', action='store_true',

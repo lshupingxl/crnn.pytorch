@@ -69,7 +69,7 @@ class CRNN(nn.Module):
         # conv features
         conv = self.cnn(input)
         b, c, h, w = conv.size()
-        assert h == 1, "the height of conv must be 1"
+        # assert h == 1, "the height of conv must be 1"
         conv = conv.squeeze(2)
         conv = conv.permute(2, 0, 1)  # [w, b, c]
         # rnn features
@@ -80,8 +80,10 @@ class CRNN(nn.Module):
 
 if __name__ == '__main__':
     import torch
-
-    input = torch.Tensor(1, 3, 32, 320)
+    import torchvision
+    input = torch.Tensor(10, 3, 32, 320)
     net = CRNN(32,3,10,256)
-    y = net(input)
-    print(y.shape)
+    net.eval()
+    print(net)
+    # traced_script_module = torch.jit.trace(net, input)
+    # traced_script_module.save("model.pt")
